@@ -39,7 +39,7 @@ function createMockDeps(): WalletManagerDependencies {
       creditUsdc: jest.fn().mockResolvedValue(undefined),
     },
     secretsManager: {
-      createSecret: jest.fn().mockResolvedValue({
+      putSecretValue: jest.fn().mockResolvedValue({
         arn: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:trading-system/agents/agent-1/cdp-api-key-AbCdEf',
       }),
     },
@@ -127,14 +127,12 @@ describe('DefaultWalletManager', () => {
 
       await manager.provisionWallet('agent-1');
 
-      expect(deps.secretsManager.createSecret).toHaveBeenCalledWith({
-        name: 'trading-system/agents/agent-1/cdp-api-key',
+      expect(deps.secretsManager.putSecretValue).toHaveBeenCalledWith({
+        secretId: 'trading-system/agents/agent-1/cdp-api-key',
         secretValue: JSON.stringify({
           apiKeyId: 'key-id-001',
           apiKeySecret: 'secret-key-value',
         }),
-        kmsKeyId: config.kmsKeyArn,
-        description: 'CDP API key for agent agent-1',
       });
     });
 
@@ -213,7 +211,7 @@ describe('DefaultWalletManager', () => {
 
     it('should throw WalletProvisioningError when Secrets Manager fails', async () => {
       const deps = createMockDeps();
-      (deps.secretsManager.createSecret as jest.Mock).mockRejectedValue(
+      (deps.secretsManager.putSecretValue as jest.Mock).mockRejectedValue(
         new Error('Access denied')
       );
       const config = createConfig();

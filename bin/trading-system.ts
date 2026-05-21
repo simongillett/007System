@@ -22,10 +22,14 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
 };
 
+// Agent IDs for the trading system (shared across stacks)
+const agentIds = ['agent-data-provider', 'agent-market-analyst', 'agent-service-executor', 'agent-arbitrage'];
+
 // --- Wave 1: Foundation ---
 // Provides shared infrastructure: KMS CMK, VPC, Secrets Manager patterns
 const foundationStack = new FoundationStack(app, 'TradingSystem-Foundation', {
   env,
+  agentIds,
   // Requirement 9.6: On deployment failure, roll back all resources created during the failed deployment
   terminationProtection: false,
 });
@@ -37,6 +41,8 @@ const identityStack = new IdentityStack(app, 'TradingSystem-Identity', {
   env,
   kmsKeyArn: foundationStack.kmsKeyArn,
   vpc: foundationStack.vpc,
+  agentIds,
+  agentSecretArns: foundationStack.agentSecretArns,
 });
 identityStack.addDependency(foundationStack);
 

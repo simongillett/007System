@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
@@ -20,12 +21,21 @@ export function getAgentSecretName(agentId: string): string {
   return `${SECRETS_PREFIX}/${agentId}/${CDP_API_KEY_SUFFIX}`;
 }
 
-export interface FoundationStackProps extends cdk.StackProps {}
+export interface FoundationStackProps extends cdk.StackProps {
+  /**
+   * List of agent IDs to pre-create Secrets Manager secrets for.
+   * Each agent gets an empty CDP API key secret that is populated at runtime
+   * by the WalletManager during wallet provisioning.
+   * Defaults to a single agent if not specified.
+   */
+  agentIds?: string[];
+}
 
 /**
  * FoundationStack provides shared infrastructure for the trading system:
  * - KMS CMK for encrypting all secrets (CDP keys, tokens)
  * - VPC with private subnets and NAT gateway for Lambda networking
+ * - Per-agent Secrets Manager secrets (empty shells, populated at runtime)
  * - Exports for dependent stacks (IdentityStack, PaymentStack)
  */
 export class FoundationStack extends cdk.Stack {
@@ -44,8 +54,16 @@ export class FoundationStack extends cdk.Stack {
   /** Security group for Lambda functions in the VPC */
   public readonly lambdaSecurityGroupId: string;
 
+  /** Map of agent ID to their Secrets Manager secret ARN */
+  public readonly agentSecretArns: Map<string, string>;
+
+  /** Map of agent ID to their Secrets Manager Secret construct */
+  public readonly agentSecrets: Map<string, secretsmanager.ISecret>;
+
   constructor(scope: Construct, id: string, props?: FoundationStackProps) {
     super(scope, id, props);
+
+    const agentIds = props?.agentIds ?? ['agent-default'];
 
     // --- KMS Customer-Managed Key ---
     // Used to encrypt all Secrets Manager secrets (CDP API keys, tokens)
@@ -158,6 +176,33 @@ export class FoundationStack extends cdk.Stack {
       stringValue: lambdaSecurityGroup.securityGroupId,
       description: 'Security group ID for Lambda functions in the VPC',
     });
+
+    // --- Per-Agent Secrets Manager Secrets ---
+    // Create empty secret shells for each agent's CDP API key.
+    // These are populated at runtime by the WalletManager during wallet provisioning.
+    // Creating them in CDK ensures:
+    // - IAM policies reference concrete ARNs (no wildcards)
+    // - KMS encryption is configured from day one
+    // - Credential Providers can reference real secret ARNs at deploy time
+    this.agentSecretArns = new Map<string, string>();
+    this.agentSecrets = new Map<string, secretsmanager.ISecret>();
+
+    for (const agentId of agentIds) {
+      const secretName = getAgentSecretName(agentId);
+      const secret = new secretsmanager.Secret(this, `CdpApiKey-${agentId}`, {
+        secretName,
+        encryptionKey: key,
+        description: `CDP API key for agent ${agentId} — populated at runtime by WalletManager`,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        // Placeholder value — WalletManager will overwrite with real credentials
+        secretStringValue: cdk.SecretValue.unsafePlainText(
+          JSON.stringify({ apiKeyId: 'PLACEHOLDER', apiKeySecret: 'PLACEHOLDER' })
+        ),
+      });
+
+      this.agentSecretArns.set(agentId, secret.secretArn);
+      this.agentSecrets.set(agentId, secret);
+    }
 
     // --- CloudFormation Outputs ---
     new cdk.CfnOutput(this, 'KmsKeyArnOutput', {

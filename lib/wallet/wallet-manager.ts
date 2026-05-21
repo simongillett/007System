@@ -49,15 +49,13 @@ export interface CdpSdkClient {
 
 /**
  * Interface for AWS Secrets Manager operations.
- * Used only during provisioning to store the CDP API key.
+ * Used during provisioning to populate the pre-created CDP API key secret.
  */
 export interface SecretsManagerClient {
-  /** Store a secret value encrypted with KMS */
-  createSecret(params: {
-    name: string;
+  /** Update an existing secret's value (secret shell created by CDK) */
+  putSecretValue(params: {
+    secretId: string;
     secretValue: string;
-    kmsKeyId: string;
-    description: string;
   }): Promise<{ arn: string }>;
 }
 
@@ -300,18 +298,18 @@ export class DefaultWalletManager implements WalletManager {
       network: this.config.network,
     });
 
-    // Step 2: Store API key in Secrets Manager encrypted with KMS (Requirement 2.2)
+    // Step 2: Populate the pre-created secret with real CDP credentials (Requirement 2.2)
+    // The secret shell was created by CDK in FoundationStack with a placeholder value.
+    // WalletManager overwrites it with the real API key from CDP SDK.
     const secretName = getAgentSecretName(agentId);
     const secretValue = JSON.stringify({
       apiKeyId: walletResult.apiKeyId,
       apiKeySecret: walletResult.apiKeySecret,
     });
 
-    const secretResult = await this.deps.secretsManager.createSecret({
-      name: secretName,
+    const secretResult = await this.deps.secretsManager.putSecretValue({
+      secretId: secretName,
       secretValue,
-      kmsKeyId: this.config.kmsKeyArn,
-      description: `CDP API key for agent ${agentId}`,
     });
 
     // Step 3: Create Credential Provider in AgentCore Identity (Requirement 2.2)

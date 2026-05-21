@@ -18,6 +18,13 @@ export interface WorkloadIdentityProps {
 
   /** IAM Role ARN of the Token Vault (for trust relationship) */
   tokenVaultRoleArn: string;
+
+  /**
+   * Pre-created Secrets Manager secret ARN from FoundationStack.
+   * When provided, the Credential Provider references this ARN directly
+   * instead of computing a pattern-based ARN.
+   */
+  secretArn?: string;
 }
 
 /**
@@ -56,18 +63,22 @@ export class WorkloadIdentity extends Construct {
 
     this.agentId = props.agentId;
 
-    // Compute the Secrets Manager secret ARN for this agent's CDP API key
-    // Pattern: trading-system/agents/{agentId}/cdp-api-key
-    const secretName = getAgentSecretName(props.agentId);
-    this.secretArn = cdk.Arn.format(
-      {
-        service: 'secretsmanager',
-        resource: 'secret',
-        resourceName: `${secretName}-??????`, // Secrets Manager appends random suffix
-        arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
-      },
-      cdk.Stack.of(this)
-    );
+    // Use the pre-created secret ARN from FoundationStack if provided,
+    // otherwise fall back to the pattern-based ARN computation
+    if (props.secretArn) {
+      this.secretArn = props.secretArn;
+    } else {
+      const secretName = getAgentSecretName(props.agentId);
+      this.secretArn = cdk.Arn.format(
+        {
+          service: 'secretsmanager',
+          resource: 'secret',
+          resourceName: `${secretName}-??????`, // Secrets Manager appends random suffix
+          arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+        },
+        cdk.Stack.of(this)
+      );
+    }
 
     // --- Credential Provider (API Key type) ---
     // References the Secrets Manager secret ARN for this agent's CDP API key

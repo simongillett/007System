@@ -12,6 +12,13 @@ export interface IdentityStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
 
   /**
+   * Map of agent ID to their Secrets Manager secret ARN from FoundationStack.
+   * Used by Credential Providers to reference the correct secret.
+   * If not provided, falls back to pattern-based ARN computation.
+   */
+  agentSecretArns?: Map<string, string>;
+
+  /**
    * List of agent IDs to create Workload Identities for.
    * Each agent gets its own Workload Identity, Credential Provider, and scoped IAM role.
    * Supports 1-10 agents (Requirement 1.1).
@@ -73,6 +80,7 @@ export class IdentityStack extends cdk.Stack {
     this.workloadIdentities = new Map<string, WorkloadIdentity>();
 
     for (const agentId of agentIds) {
+      const secretArn = props.agentSecretArns?.get(agentId);
       const identity = new WorkloadIdentity(
         this,
         `WorkloadIdentity-${agentId}`,
@@ -81,6 +89,7 @@ export class IdentityStack extends cdk.Stack {
           kmsKeyArn: props.kmsKeyArn,
           tokenVaultArn: this.tokenVault.vaultArn,
           tokenVaultRoleArn: this.tokenVault.tokenVaultRole.roleArn,
+          secretArn,
         }
       );
 

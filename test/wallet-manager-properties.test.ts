@@ -44,7 +44,7 @@ function createMockDeps(walletStore?: Partial<WalletStore>): WalletManagerDepend
       creditUsdc: jest.fn().mockResolvedValue(undefined),
     },
     secretsManager: {
-      createSecret: jest.fn().mockResolvedValue({ arn: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test' }),
+      putSecretValue: jest.fn().mockResolvedValue({ arn: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test' }),
     },
     tokenVault: {
       retrieveCredentials: jest.fn().mockResolvedValue({

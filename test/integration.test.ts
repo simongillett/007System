@@ -373,7 +373,7 @@ describe('Integration: Wallet Provisioning → Credential Retrieval via Token Va
 
     // Mock Secrets Manager - stores the CDP key
     const mockSecretsManager: SecretsManagerClient = {
-      createSecret: jest.fn().mockResolvedValue({
+      putSecretValue: jest.fn().mockResolvedValue({
         arn: 'arn:aws:secretsmanager:us-east-1:123456789:secret:trading-system/agents/agent-new/cdp-api-key',
       }),
     };
@@ -425,12 +425,13 @@ describe('Integration: Wallet Provisioning → Credential Retrieval via Token Va
     expect(mockCdpSdk.createWallet).toHaveBeenCalledWith({ network: 'base' });
 
     // Verify secret was stored in Secrets Manager
-    expect(mockSecretsManager.createSecret).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kmsKeyId: 'arn:aws:kms:us-east-1:123456789:key/test-kms-key',
-        description: 'CDP API key for agent agent-new',
-      })
-    );
+    expect(mockSecretsManager.putSecretValue).toHaveBeenCalledWith({
+      secretId: 'trading-system/agents/agent-new/cdp-api-key',
+      secretValue: JSON.stringify({
+        apiKeyId: 'cdp-api-key-id-001',
+        apiKeySecret: 'cdp-api-key-secret-001',
+      }),
+    });
 
     // Verify Credential Provider was created
     expect(mockIdentity.createCredentialProvider).toHaveBeenCalledWith({
