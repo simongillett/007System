@@ -35,14 +35,12 @@ const foundationStack = new FoundationStack(app, 'TradingSystem-Foundation', {
 });
 
 // --- Wave 2: Identity ---
-// Depends on Foundation for KMS key and VPC
-// Provides: Token Vault, per-agent Workload Identities, Credential Providers
+// Depends on Foundation for KMS key (secrets encryption)
+// Provides: per-agent WorkloadIdentities, ApiKeyCredentialProviders
 const identityStack = new IdentityStack(app, 'TradingSystem-Identity', {
   env,
-  kmsKeyArn: foundationStack.kmsKeyArn,
-  vpc: foundationStack.vpc,
   agentIds,
-  agentSecretArns: foundationStack.agentSecretArns,
+  cdpApiKey: cdk.SecretValue.secretsManager('trading-system/cdp-bootstrap-key', { jsonField: 'apiKeySecret' }),
 });
 identityStack.addDependency(foundationStack);
 
@@ -51,7 +49,6 @@ identityStack.addDependency(foundationStack);
 // Provides: Supervisor Agent, Specialized Agents
 const agentStack = new AgentStack(app, 'TradingSystem-Agent', {
   env,
-  tokenVaultArn: identityStack.tokenVaultArn,
 });
 agentStack.addDependency(identityStack);
 
